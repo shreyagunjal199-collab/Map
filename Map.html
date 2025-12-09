@@ -1,0 +1,83 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parbhani District Map — Soil Points</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .footer { position:absolute; left:10px; bottom:10px; z-index:1000; background:rgba(255,255,255,0.9); padding:6px 8px; border-radius:6px; font-size:12px; font-family: Arial, sans-serif; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="footer">Parbhani Map — Click a point to open Google Maps</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+<script>
+// Initialize map
+const map = L.map('map').setView([19.2700, 76.7700], 9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+// Marker cluster group
+const markerCluster = L.markerClusterGroup();
+
+// Load district polygon from JSON
+fetch('NAME_2_Parbhani.json')
+  .then(res => res.json())
+  .then(data => {
+    const districtLayer = L.geoJSON(data, { style:{color:'#2a7ae2', weight:2, fillOpacity:0.08} }).addTo(map);
+    fitMap();
+  })
+  .catch(err => console.error('Error loading district.json:', err));
+
+// Load soil points from JSON
+fetch('Sampling_Locations.json')
+  .then(res => res.json())
+  .then(data => {
+    const pointsLayer = L.geoJSON(data, {
+      pointToLayer: function(feature, latlng){ return L.circleMarker(latlng, {radius:6, weight:1, fillOpacity:0.9}); },
+      onEachFeature: function(feature, layer){
+        const latlng = layer.getLatLng();
+        layer.bindPopup(`<b>ID:</b> ${feature.properties.sample_id || ''}<br/>
+          <button onclick="window.open('https://www.google.com/maps?q=${latlng.lat},${latlng.lng}','_blank')">Open in Google Maps</button>`);
+        // direct click opens Google Maps
+        layer.on('click', function(){ window.open(`https://www.google.com/maps?q=${latlng.lat},${latlng.lng}`,'_blank'); });
+      }
+    });
+    markerCluster.addLayer(pointsLayer);
+    map.addLayer(markerCluster);
+    fitMap();
+  })
+  .catch(err => console.error('Error loading points.json:', err));
+
+// Fit map to show all layers
+function fitMap(){
+  setTimeout(()=>{ // wait for both layers to load
+    const layers = [];
+    map.eachLayer(l => {
+      if (l instanceof L.GeoJSON || l instanceof L.MarkerClusterGroup) layers.push(l);
+    });
+    if(layers.length){
+      const fg = L.featureGroup();
+      layers.forEach(l => {
+        l.eachLayer(ll => fg.addLayer(ll));
+      });
+      map.fitBounds(fg.getBounds(), {padding:[20,20]});
+    }
+  }, 300);
+}
+</script>
+</body>
+</html>
